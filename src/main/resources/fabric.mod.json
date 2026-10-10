@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "id": "quickdisconnect",
+  "version": "${version}",
+  "name": "Quick Disconnect",
+  "description": "Drücke eine Taste (Standard: 1), um sofort vom Server getrennt zu werden.",
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": { "client": ["de.example.quickdisconnect.QuickDisconnectClient"] },
+  "depends": { "fabricloader": ">=0.15.0", "minecraft": "~1.21.1", "fabric-api": "*" }
+}
