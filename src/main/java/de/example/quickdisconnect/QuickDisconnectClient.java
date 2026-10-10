@@ -6,17 +6,22 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.Identifier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class QuickDisconnectClient implements ClientModInitializer {
+    private static final Logger LOGGER = LoggerFactory.getLogger("quickdisconnect");
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
             Identifier.fromNamespaceAndPath("quickdisconnect", "main"));
 
     private static KeyMapping disconnectKey;
     private static PauseScreen pendingScreen = null;
+    private static int attempts = 0;
 
     @Override
     public void onInitializeClient() {
@@ -26,15 +31,22 @@ public class QuickDisconnectClient implements ClientModInitializer {
                 CATEGORY));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // Step 2 (next tick): pause menu is open -> Tab until the disconnect button has focus, then Enter
+            // Step 2: pause menu is open -> find the disconnect button, focus it, press Enter
             if (pendingScreen != null) {
                 PauseScreen screen = pendingScreen;
-                pendingScreen = null;
-                for (int i = 0; i < 40; i++) {
-                    screen.keyPressed(new KeyEvent(InputConstants.KEY_TAB, 0, 0));
-                    if (isDisconnectButton(screen)) {
-                        screen.keyPressed(new KeyEvent(InputConstants.KEY_RETURN, 0, 0));
-                        break;
+                attempts++;
+                Button button = findDisconnectButton(screen);
+                if (button != null) {
+                    pendingScreen = null;
+                    screen.setFocused(button);
+                    screen.keyPressed(new KeyEvent(InputConstants.KEY_RETURN, 0, 0));
+                } else if (attempts >= 5) {
+                    pendingScreen = null;
+                    LOGGER.warn("Disconnect button not found. Buttons on the pause screen:");
+                    for (GuiEventListener child : screen.children()) {
+                        if (child instanceof Button b) {
+                            LOGGER.warn(" - {} ({})", b.getMessage().getString(), b.getMessage().getContents());
+                        }
                     }
                 }
             }
@@ -45,17 +57,22 @@ public class QuickDisconnectClient implements ClientModInitializer {
                     PauseScreen screen = new PauseScreen(true);
                     client.setScreenAndShow(screen);   // 26.2+: renamed from setScreen
                     pendingScreen = screen;
+                    attempts = 0;
                 }
             }
         });
     }
 
-    private static boolean isDisconnectButton(PauseScreen screen) {
-        if (screen.getFocused() instanceof Button b
-                && b.getMessage().getContents() instanceof TranslatableContents t) {
-            String k = t.getKey();
-            return k.equals("menu.disconnect") || k.equals("menu.returnToMenu");
+    private static Button findDisconnectButton(PauseScreen screen) {
+        for (GuiEventListener child : screen.children()) {
+            if (child instanceof Button b && b.active
+                    && b.getMessage().getContents() instanceof TranslatableContents t) {
+                String k = t.getKey();
+                if (k.equals("menu.disconnect") || k.equals("menu.returnToMenu")) {
+                    return b;
+                }
+            }
         }
-        return false;
+        return null;
     }
 }
