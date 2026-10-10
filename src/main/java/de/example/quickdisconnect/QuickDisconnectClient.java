@@ -10,7 +10,6 @@ import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.Identifier;
-import org.lwjgl.glfw.GLFW;
 
 public class QuickDisconnectClient implements ClientModInitializer {
     private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
@@ -23,8 +22,7 @@ public class QuickDisconnectClient implements ClientModInitializer {
     public void onInitializeClient() {
         disconnectKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.quickdisconnect.disconnect",
-                InputConstants.Type.KEYSYM,
-                GLFW.GLFW_KEY_1,              // default key: 1
+                InputConstants.KEY_1,          // default key: 1
                 CATEGORY));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
@@ -33,9 +31,9 @@ public class QuickDisconnectClient implements ClientModInitializer {
                 PauseScreen screen = pendingScreen;
                 pendingScreen = null;
                 for (int i = 0; i < 40; i++) {
-                    screen.keyPressed(new KeyEvent(GLFW.GLFW_KEY_TAB, 0, 0));
+                    screen.keyPressed(new KeyEvent(InputConstants.KEY_TAB, 0, 0));
                     if (isDisconnectButton(screen)) {
-                        screen.keyPressed(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                        screen.keyPressed(new KeyEvent(InputConstants.KEY_RETURN, 0, 0));
                         break;
                     }
                 }
