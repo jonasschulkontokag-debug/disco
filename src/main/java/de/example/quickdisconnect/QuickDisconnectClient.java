@@ -1,55 +1,60 @@
 package de.example.quickdisconnect;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.minecraft.client.gui.screen.GameMenuScreen;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.option.KeyBinding;
-import net.minecraft.client.util.InputUtil;
-import net.minecraft.text.TranslatableTextContent;
+import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
+import net.minecraft.client.KeyMapping;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.network.chat.contents.TranslatableContents;
+import net.minecraft.resources.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 public class QuickDisconnectClient implements ClientModInitializer {
-    private static KeyBinding disconnectKey;
-    private static boolean pending = false;
+    private static final KeyMapping.Category CATEGORY = KeyMapping.Category.register(
+            Identifier.fromNamespaceAndPath("quickdisconnect", "main"));
+
+    private static KeyMapping disconnectKey;
+    private static PauseScreen pendingScreen = null;
 
     @Override
     public void onInitializeClient() {
-        disconnectKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+        disconnectKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
                 "key.quickdisconnect.disconnect",
-                InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_1,
-                "category.quickdisconnect"));
+                InputConstants.Type.KEYSYM,
+                GLFW.GLFW_KEY_1,              // default key: 1
+                CATEGORY));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            // 1) Taste gedrückt -> Pausenmenü öffnen (wie Escape)
-            while (disconnectKey.wasPressed()) {
-                if (client.world != null && !pending) {
-                    client.setScreen(new GameMenuScreen(true));
-                    pending = true;
+            // Step 2 (next tick): pause menu is open -> Tab until the disconnect button has focus, then Enter
+            if (pendingScreen != null) {
+                PauseScreen screen = pendingScreen;
+                pendingScreen = null;
+                for (int i = 0; i < 40; i++) {
+                    screen.keyPressed(new KeyEvent(GLFW.GLFW_KEY_TAB, 0, 0));
+                    if (isDisconnectButton(screen)) {
+                        screen.keyPressed(new KeyEvent(GLFW.GLFW_KEY_ENTER, 0, 0));
+                        break;
+                    }
                 }
             }
 
-            // 2) Menü ist offen -> mit Tab durchschalten, bis der Disconnect-Button fokussiert ist
-            if (pending && client.currentScreen instanceof GameMenuScreen screen) {
-                pending = false;
-                for (int i = 0; i < 40; i++) {
-                    screen.keyPressed(GLFW.GLFW_KEY_TAB, 0, 0);
-                    if (isDisconnectButton(screen)) {
-                        // 3) Enter drücken -> "Save and Quit" / "Disconnect"
-                        screen.keyPressed(GLFW.GLFW_KEY_ENTER, 0, 0);
-                        break;
-                    }
+            // Step 1: hotkey pressed -> open the pause menu (like Escape)
+            while (disconnectKey.consumeClick()) {
+                if (client.level != null && pendingScreen == null) {
+                    PauseScreen screen = new PauseScreen(true);
+                    client.setScreenAndShow(screen);   // 26.2+: renamed from setScreen
+                    pendingScreen = screen;
                 }
             }
         });
     }
 
-    private static boolean isDisconnectButton(Screen screen) {
-        if (screen.getFocused() instanceof ButtonWidget b
-                && b.getMessage().getContent() instanceof TranslatableTextContent t) {
+    private static boolean isDisconnectButton(PauseScreen screen) {
+        if (screen.getFocused() instanceof Button b
+                && b.getMessage().getContents() instanceof TranslatableContents t) {
             String k = t.getKey();
             return k.equals("menu.disconnect") || k.equals("menu.returnToMenu");
         }
